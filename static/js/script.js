@@ -357,7 +357,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function updateSessionCount() {
-        els.sessionMessageCount.textContent = state.messages.length;
+        if (els.sessionMessageCount) {
+            els.sessionMessageCount.textContent = state.messages.length;
+        }
     }
 
     function updateTriageSidebarBadge(level) {
