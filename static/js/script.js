@@ -27,8 +27,6 @@ document.addEventListener("DOMContentLoaded", () => {
         sidebarBackdrop: document.getElementById("sidebarBackdrop"),
         mobileMenuBtn: document.getElementById("mobileMenuBtn"),
         sidebarCloseBtn: document.getElementById("sidebarCloseBtn"),
-        newChatBtn: document.getElementById("newChatBtn"),
-        headerResetBtn: document.getElementById("headerResetBtn"),
         themeToggleBtn: document.getElementById("themeToggleBtn"),
         themeIcon: document.getElementById("themeIcon"),
         soundToggleBtn: document.getElementById("soundToggleBtn"),
@@ -69,11 +67,6 @@ document.addEventListener("DOMContentLoaded", () => {
         openTriageGuideBtn: document.getElementById("openTriageGuideBtn"),
         disclaimerModal: document.getElementById("disclaimerModal"),
         openDisclaimerBtn: document.getElementById("openDisclaimerBtn"),
-        exportModal: document.getElementById("exportModal"),
-        exportChatBtn: document.getElementById("exportChatBtn"),
-        exportPreviewText: document.getElementById("exportPreviewText"),
-        printTranscriptBtn: document.getElementById("printTranscriptBtn"),
-        downloadTxtBtn: document.getElementById("downloadTxtBtn"),
 
         // Toast
         toast: document.getElementById("toastNotification"),
@@ -429,10 +422,6 @@ document.addEventListener("DOMContentLoaded", () => {
             document.querySelectorAll(".modal-overlay.active").forEach(closeModal);
             if (els.sidebar.classList.contains("open")) closeSidebar();
         }
-        if ((e.ctrlKey || e.metaKey) && e.key === "k") {
-            e.preventDefault();
-            resetConversation();
-        }
     });
 
     // Sidebar drawer for mobile
@@ -568,82 +557,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // -------------------------------------------------------------------------
-    // 9. EXPORT & PRINT TRANSCRIPT
-    // -------------------------------------------------------------------------
-    function generateTranscriptText() {
-        const timestamp = new Date().toLocaleString();
-        let transcript = `====================================================\n`;
-        transcript += `MEDIGUIDE AI — CLINICAL CONSULTATION TRANSCRIPT\n`;
-        transcript += `Generated: ${timestamp}\n`;
-        transcript += `Triage Level Status: ${state.currentTriageLevel.toUpperCase()}\n`;
-        transcript += `====================================================\n\n`;
-        transcript += `DISCLAIMER: This document is for informational and educational purposes only.\n`;
-        transcript += `It does not constitute a formal diagnosis, medical advice, or prescription.\n\n`;
-        transcript += `----------------------------------------------------\n`;
-
-        if (state.messages.length === 0) {
-            transcript += `(No conversation messages recorded in this session)\n`;
-        } else {
-            state.messages.forEach((msg, idx) => {
-                const senderName = msg.sender === "user" ? "YOU / PATIENT" : "MEDIGUIDE AI";
-                transcript += `[${msg.time || ""}] ${senderName}:\n${msg.text}\n\n`;
-            });
-        }
-
-        transcript += `----------------------------------------------------\n`;
-        transcript += `End of MediGuide AI Consultation Summary\n`;
-        return transcript;
-    }
-
-    function openExportModal() {
-        els.exportPreviewText.textContent = generateTranscriptText();
-        openModal(els.exportModal);
-    }
-
-    els.downloadTxtBtn.addEventListener("click", () => {
-        const text = generateTranscriptText();
-        const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `MediGuide_Consultation_${Date.now()}.txt`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        showToast("Transcript downloaded successfully");
-        closeModal(els.exportModal);
-    });
-
-    els.printTranscriptBtn.addEventListener("click", () => {
-        const printWindow = window.open("", "_blank");
-        const formatted = generateTranscriptText().replace(/\n/g, "<br>");
-        printWindow.document.write(`
-            <html>
-                <head>
-                    <title>MediGuide AI - Consultation Report</title>
-                    <style>
-                        body { font-family: sans-serif; padding: 30px; line-height: 1.6; color: #1e293b; }
-                        h2 { color: #0d9488; }
-                        hr { border: 0; border-top: 1px solid #cbd5e1; margin: 15px 0; }
-                    </style>
-                </head>
-                <body>
-                    <h2>🩺 MediGuide AI — Medical Information Summary</h2>
-                    <hr>
-                    <div>${formatted}</div>
-                </body>
-            </html>
-        `);
-        printWindow.document.close();
-        printWindow.focus();
-        setTimeout(() => {
-            printWindow.print();
-        }, 300);
-    });
-
-    // -------------------------------------------------------------------------
-    // 10. RENDERING MESSAGE CARDS
+    // 9. RENDERING MESSAGE CARDS
     // -------------------------------------------------------------------------
     function appendUserMessage(text) {
         els.welcomeHero.style.display = "none";
@@ -947,32 +861,6 @@ document.addEventListener("DOMContentLoaded", () => {
         sendMessage(text);
     }
 
-    async function resetConversation() {
-        stopSpeaking();
-        stopVoiceRecognition();
-
-        try {
-            await fetch("/api/reset", { method: "POST" });
-        } catch (e) {
-            console.debug("Reset API notice:", e);
-        }
-
-        state.messages = [];
-        updateSessionCount();
-        updateTriageSidebarBadge("routine");
-
-        els.messagesContainer.innerHTML = "";
-        els.welcomeHero.style.display = "flex";
-        els.messageInput.value = "";
-        adjustTextareaHeight();
-
-        if (els.sidebar.classList.contains("open")) {
-            closeSidebar();
-        }
-
-        showToast("Consultation session has been reset", "info");
-    }
-
     function escapeHtml(str) {
         if (!str) return "";
         return str
@@ -1037,8 +925,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // Controls
-    els.newChatBtn.addEventListener("click", resetConversation);
-    els.headerResetBtn.addEventListener("click", resetConversation);
     els.themeToggleBtn.addEventListener("click", toggleTheme);
     els.soundToggleBtn.addEventListener("click", toggleSound);
     els.globalTtsToggleBtn.addEventListener("click", toggleGlobalTts);
@@ -1062,10 +948,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     els.openDisclaimerBtn.addEventListener("click", () => openModal(els.disclaimerModal));
-    els.exportChatBtn.addEventListener("click", () => {
-        if (els.sidebar.classList.contains("open")) closeSidebar();
-        openExportModal();
-    });
 
     // Initializations
     initTheme();

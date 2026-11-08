@@ -131,21 +131,6 @@ def health():
 
 
 # ---------------------------------------------------------
-# Reset Chat Session
-# ---------------------------------------------------------
-
-@app.route("/api/reset", methods=["POST"])
-def reset():
-    session.pop("assessment", None)
-    session.pop("conversation_id", None)
-    session.pop("session_messages", None)
-    return jsonify({
-        "status": "success",
-        "message": "Consultation session reset successfully"
-    })
-
-
-# ---------------------------------------------------------
 # Medicine Knowledge Base Directory
 # ---------------------------------------------------------
 
