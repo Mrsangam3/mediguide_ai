@@ -1,84 +1,741 @@
 <!DOCTYPE html>
-<html lang="en">
-
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0d9488">
+    <meta name="description" content="MediGuide AI - Intelligent Medical Information Assistant with Safety Triage Guardrails">
+    
+    <title>MediGuide AI — Clinical Triage & Health Assistant</title>
 
-    <title>MediGuide AI</title>
+    <!-- Medical Favicon (SVG Emoji) -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🩺</text></svg>">
 
-    <link rel="stylesheet"
-          href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+
+    <!-- Application Stylesheet -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+
+    <!-- Markdown Parser & HTML Sanitizer -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.9/dist/purify.min.js"></script>
 </head>
-
 <body>
 
-    <div class="chat-container">
+    <div class="app-layout">
 
-        <!-- Header -->
-        <header class="chat-header">
-            <div>
-                <h1>🩺 MediGuide AI</h1>
-                <p>Medical Information Assistant</p>
+        <!-- ============================================== -->
+        <!-- SIDEBAR                                        -->
+        <!-- ============================================== -->
+        <aside class="sidebar" id="appSidebar">
+            <div class="sidebar-header">
+                <div class="brand-box">
+                    <div class="brand-icon pulse-glow">
+                        <i class="fa-solid fa-heart-pulse"></i>
+                    </div>
+                    <div class="brand-text">
+                        <h2>MediGuide <span>AI</span></h2>
+                        <span class="brand-badge">Clinical Guard v2.4</span>
+                    </div>
+                </div>
+                <button class="icon-btn sidebar-close-btn" id="sidebarCloseBtn" aria-label="Close sidebar">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
             </div>
 
-            <div class="status">
-                <span></span>
-                Online
+            <!-- New Consultation Button -->
+            <div class="sidebar-actions">
+                <button class="btn btn-primary btn-block new-chat-btn" id="newChatBtn">
+                    <i class="fa-solid fa-plus"></i>
+                    <span>New Consultation</span>
+                    <kbd>Ctrl+K</kbd>
+                </button>
             </div>
-        </header>
 
-
-        <!-- Chat Area -->
-        <main class="chat-area" id="chatArea">
-
-            <div class="message bot-message">
-
-                <div class="avatar">
-                    🩺
+            <!-- Navigation Sections -->
+            <div class="sidebar-scrollable">
+                
+                <!-- Triage Protocol Summary -->
+                <div class="nav-section">
+                    <span class="nav-section-title">Safety Triage Protocol</span>
+                    <div class="triage-status-card" id="sidebarTriageCard">
+                        <div class="triage-pill triage-routine" id="currentTriagePill">
+                            <span class="status-dot"></span>
+                            <span class="triage-pill-text">Level: Routine Guard</span>
+                        </div>
+                        <p class="triage-desc" id="currentTriageDesc">
+                            Continuous monitoring of symptom severity, urgent red flags, and drug contraindications.
+                        </p>
+                        <button class="text-link-btn" id="openTriageGuideBtn">
+                            <i class="fa-solid fa-circle-info"></i> How triage works
+                        </button>
+                    </div>
                 </div>
 
-                <div class="message-content">
-                    <strong>MediGuide AI</strong>
+                <!-- Emergency SOS Quick Access -->
+                <div class="nav-section">
+                    <span class="nav-section-title">Emergency Helplines</span>
+                    <div class="emergency-nav-box">
+                        <div class="emergency-alert-strip">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                            <span>Life-threatening condition?</span>
+                        </div>
+                        <div class="emergency-hotlines">
+                            <a href="tel:911" class="hotline-btn">
+                                <span class="hotline-region">US/CA</span>
+                                <span class="hotline-number"><i class="fa-solid fa-phone"></i> 911</span>
+                            </a>
+                            <a href="tel:112" class="hotline-btn">
+                                <span class="hotline-region">EU/IN</span>
+                                <span class="hotline-number"><i class="fa-solid fa-phone"></i> 112</span>
+                            </a>
+                            <a href="tel:999" class="hotline-btn">
+                                <span class="hotline-region">UK</span>
+                                <span class="hotline-number"><i class="fa-solid fa-phone"></i> 999</span>
+                            </a>
+                        </div>
+                        <button class="btn btn-danger-soft btn-sm btn-block" id="sidebarSosModalBtn">
+                            <i class="fa-solid fa-shield-heart"></i> All Emergency Hotlines & Red Flags
+                        </button>
+                    </div>
+                </div>
 
-                    <p>
-                        Hello! I'm MediGuide AI. I can provide
-                        general information about medicines,
-                        symptoms, and health topics.
-                    </p>
+                <!-- Quick Medicine Directory -->
+                <div class="nav-section">
+                    <span class="nav-section-title">Common Medications</span>
+                    <div class="medicine-chips-list">
+                        <button class="med-chip" data-med="Paracetamol">
+                            <i class="fa-solid fa-capsules"></i> Paracetamol
+                        </button>
+                        <button class="med-chip" data-med="Ibuprofen">
+                            <i class="fa-solid fa-tablets"></i> Ibuprofen
+                        </button>
+                        <button class="med-chip" data-med="Cetirizine">
+                            <i class="fa-solid fa-pills"></i> Cetirizine
+                        </button>
+                        <button class="med-chip" data-med="Aspirin">
+                            <i class="fa-solid fa-tablets"></i> Aspirin
+                        </button>
+                        <button class="med-chip" data-med="Omeprazole">
+                            <i class="fa-solid fa-capsules"></i> Omeprazole
+                        </button>
+                    </div>
+                    <button class="text-link-btn" id="openMedicineDirectoryBtn">
+                        <i class="fa-solid fa-book-medical"></i> View Full Medicine Database
+                    </button>
+                </div>
 
-                    <p class="warning">
-                        ⚠️ I provide general health information
-                        and do not replace a doctor or pharmacist.
-                    </p>
+                <!-- Session Stats -->
+                <div class="nav-section">
+                    <span class="nav-section-title">Session Information</span>
+                    <div class="session-info-card">
+                        <div class="session-row">
+                            <span>Engine</span>
+                            <span class="session-value"><i class="fa-solid fa-bolt text-warning"></i> Groq LLaMA</span>
+                        </div>
+                        <div class="session-row">
+                            <span>Status</span>
+                            <span class="session-value text-success"><i class="fa-solid fa-circle-check"></i> Connected</span>
+                        </div>
+                        <div class="session-row">
+                            <span>Messages</span>
+                            <span class="session-value" id="sessionMessageCount">0</span>
+                        </div>
+                    </div>
                 </div>
 
             </div>
+
+            <!-- Sidebar Footer Controls -->
+            <div class="sidebar-footer">
+                <div class="theme-toggle-box">
+                    <span>Theme</span>
+                    <button class="theme-toggle-btn" id="themeToggleBtn" aria-label="Toggle theme">
+                        <i class="fa-solid fa-moon" id="themeIcon"></i>
+                    </button>
+                </div>
+
+                <div class="footer-btn-row">
+                    <button class="icon-btn-round" id="soundToggleBtn" title="Toggle audio cues" aria-label="Toggle audio cues">
+                        <i class="fa-solid fa-volume-high" id="soundIcon"></i>
+                    </button>
+                    <button class="icon-btn-round" id="exportChatBtn" title="Export consultation transcript" aria-label="Export chat">
+                        <i class="fa-solid fa-download"></i>
+                    </button>
+                    <button class="icon-btn-round" id="openDisclaimerBtn" title="Medical Disclaimer & Privacy" aria-label="Medical disclaimer">
+                        <i class="fa-solid fa-scale-balanced"></i>
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Sidebar Mobile Backdrop -->
+        <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+
+        <!-- ============================================== -->
+        <!-- MAIN CHAT CONTAINER                            -->
+        <!-- ============================================== -->
+        <main class="main-content">
+
+            <!-- Top Header Bar -->
+            <header class="top-nav">
+                <div class="nav-left">
+                    <button class="icon-btn mobile-menu-btn" id="mobileMenuBtn" aria-label="Open menu">
+                        <i class="fa-solid fa-bars-staggered"></i>
+                    </button>
+
+                    <div class="bot-status-wrap">
+                        <div class="bot-avatar-header pulse-glow">
+                            <i class="fa-solid fa-stethoscope"></i>
+                            <span class="live-dot" title="Safety monitor active"></span>
+                        </div>
+                        <div class="bot-meta">
+                            <div class="bot-title-row">
+                                <h1>MediGuide AI</h1>
+                                <span class="badge badge-verified">
+                                    <i class="fa-solid fa-shield-halved"></i> Verified Safety Layer
+                                </span>
+                            </div>
+                            <p class="bot-subtitle">AI-Powered Health Assistant & Safety Triage</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="nav-right">
+                    <!-- Quick SOS Pill Button -->
+                    <button class="btn btn-emergency-glow" id="headerSosBtn">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                        <span>Emergency SOS</span>
+                    </button>
+
+                    <!-- Medicine Database Drawer Button -->
+                    <button class="btn btn-outline btn-sm" id="headerMedBtn" title="Browse Medicine Directory">
+                        <i class="fa-solid fa-pills"></i>
+                        <span class="hide-mobile">Medicines</span>
+                    </button>
+
+                    <!-- Text-To-Speech Global Toggle -->
+                    <button class="icon-btn" id="globalTtsToggleBtn" title="Auto-read assistant replies aloud" aria-label="Auto read aloud">
+                        <i class="fa-solid fa-headphones" id="globalTtsIcon"></i>
+                    </button>
+
+                    <!-- Reset Chat -->
+                    <button class="icon-btn" id="headerResetBtn" title="Start new session" aria-label="Reset consultation">
+                        <i class="fa-solid fa-arrow-rotate-left"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Chat Scroll Area -->
+            <div class="chat-viewport" id="chatViewport">
+
+                <!-- Welcome Hero Screen (Shown on initial load or reset) -->
+                <section class="welcome-hero" id="welcomeHero">
+                    <div class="hero-badge">
+                        <i class="fa-solid fa-staff-snake"></i> Clinical Guidance & Safety First
+                    </div>
+
+                    <h2 class="hero-title">
+                        Welcome to <span class="gradient-text">MediGuide AI</span>
+                    </h2>
+                    
+                    <p class="hero-subtitle">
+                        Your intelligent medical information assistant. Check symptoms safely, explore verified medicine facts, and receive educational guidance backed by a 4-tier triage safety layer.
+                    </p>
+
+                    <!-- Prominent Safety Disclaimer Banner -->
+                    <div class="disclaimer-callout">
+                        <div class="disclaimer-icon">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                        </div>
+                        <div class="disclaimer-content">
+                            <strong>Important Medical Notice</strong>
+                            <p>
+                                MediGuide AI is designed strictly for educational and informational purposes. It does not provide clinical diagnoses or replace evaluation by a licensed doctor or pharmacist. In any life-threatening situation, dial your local emergency services immediately.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- 4-Tier Triage Visual Cards -->
+                    <div class="triage-architecture-strip">
+                        <div class="tier-card tier-emergency">
+                            <div class="tier-indicator"></div>
+                            <div class="tier-header">
+                                <i class="fa-solid fa-circle-exclamation text-danger"></i>
+                                <span>Emergency</span>
+                            </div>
+                            <p>Immediate referral to 911 / 112 emergency services.</p>
+                        </div>
+
+                        <div class="tier-card tier-urgent">
+                            <div class="tier-indicator"></div>
+                            <div class="tier-header">
+                                <i class="fa-solid fa-bell text-warning"></i>
+                                <span>Urgent Care</span>
+                            </div>
+                            <p>High-priority alert advising prompt physician consultation.</p>
+                        </div>
+
+                        <div class="tier-card tier-caution">
+                            <div class="tier-indicator"></div>
+                            <div class="tier-header">
+                                <i class="fa-solid fa-clipboard-question text-amber"></i>
+                                <span>Caution Triage</span>
+                            </div>
+                            <p>Interactive step-by-step follow-up symptom assessment.</p>
+                        </div>
+
+                        <div class="tier-card tier-routine">
+                            <div class="tier-indicator"></div>
+                            <div class="tier-header">
+                                <i class="fa-solid fa-book-medical text-teal"></i>
+                                <span>Routine Info</span>
+                            </div>
+                            <p>General medicine facts, self-care notes, and OTC guidelines.</p>
+                        </div>
+                    </div>
+
+                    <!-- Quick Prompt Suggestions Grid -->
+                    <div class="hero-prompts-section">
+                        <span class="prompts-title">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> Try asking a question or describing your situation:
+                        </span>
+
+                        <div class="prompt-grid">
+                            <button class="prompt-card" data-prompt="What are the common uses and precautions for Paracetamol?">
+                                <div class="prompt-icon"><i class="fa-solid fa-capsules"></i></div>
+                                <div class="prompt-text">
+                                    <strong>Paracetamol Information</strong>
+                                    <span>Uses, recommended safe dosages, and precautions</span>
+                                </div>
+                                <i class="fa-solid fa-arrow-right prompt-arrow"></i>
+                            </button>
+
+                            <button class="prompt-card" data-prompt="I have had a mild headache and low-grade fever for the past 2 days.">
+                                <div class="prompt-icon"><i class="fa-solid fa-head-side-cough"></i></div>
+                                <div class="prompt-text">
+                                    <strong>Mild Fever & Headache</strong>
+                                    <span>Step-by-step caution symptom triage assessment</span>
+                                </div>
+                                <i class="fa-solid fa-arrow-right prompt-arrow"></i>
+                            </button>
+
+                            <button class="prompt-card" data-prompt="Can I take Ibuprofen on an empty stomach or should I take it with food?">
+                                <div class="prompt-icon"><i class="fa-solid fa-tablets"></i></div>
+                                <div class="prompt-text">
+                                    <strong>Ibuprofen Safety</strong>
+                                    <span>Food interactions, side effects, and precautions</span>
+                                </div>
+                                <i class="fa-solid fa-arrow-right prompt-arrow"></i>
+                            </button>
+
+                            <button class="prompt-card" data-prompt="What are the main warning signs of severe allergic reactions?">
+                                <div class="prompt-icon"><i class="fa-solid fa-shield-virus"></i></div>
+                                <div class="prompt-text">
+                                    <strong>Allergy Red Flags</strong>
+                                    <span>Recognizing anaphylaxis and emergency symptoms</span>
+                                </div>
+                                <i class="fa-solid fa-arrow-right prompt-arrow"></i>
+                            </button>
+
+                            <button class="prompt-card" data-prompt="How does Cetirizine help with seasonal allergies and does it cause drowsiness?">
+                                <div class="prompt-icon"><i class="fa-solid fa-wind"></i></div>
+                                <div class="prompt-text">
+                                    <strong>Cetirizine / Allergy Care</strong>
+                                    <span>Antihistamine benefits and drowsiness facts</span>
+                                </div>
+                                <i class="fa-solid fa-arrow-right prompt-arrow"></i>
+                            </button>
+
+                            <button class="prompt-card" data-prompt="What immediate first-aid steps should I take for a mild thermal burn?">
+                                <div class="prompt-icon"><i class="fa-solid fa-kit-medical"></i></div>
+                                <div class="prompt-text">
+                                    <strong>First Aid: Minor Burns</strong>
+                                    <span>Cooling steps, infection prevention, and what to avoid</span>
+                                </div>
+                                <i class="fa-solid fa-arrow-right prompt-arrow"></i>
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Messages Feed -->
+                <div class="messages-container" id="messagesContainer">
+                    <!-- Dynamic Messages Appended via JavaScript -->
+                </div>
+
+                <!-- Typing / Processing Indicator -->
+                <div class="typing-indicator-wrap" id="typingIndicator" style="display: none;">
+                    <div class="bot-avatar-small">
+                        <i class="fa-solid fa-stethoscope"></i>
+                    </div>
+                    <div class="typing-bubble">
+                        <div class="pulse-dots">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </div>
+                        <span class="typing-text" id="typingText">Analyzing symptoms & safety protocols...</span>
+                    </div>
+                </div>
+
+            </div>
+
+
+            <!-- ============================================== -->
+            <!-- BOTTOM INPUT DOCK                              -->
+            <!-- ============================================== -->
+            <footer class="input-dock">
+                
+                <!-- Quick Symptom Tags Horizontal Bar -->
+                <div class="quick-tags-scroll">
+                    <span class="quick-tags-label"><i class="fa-solid fa-bolt"></i> Quick:</span>
+                    <button class="tag-pill" data-insert="I have a mild fever">🤒 Mild Fever</button>
+                    <button class="tag-pill" data-insert="I have a severe headache">🤕 Headache</button>
+                    <button class="tag-pill" data-insert="Tell me about Paracetamol">💊 Paracetamol</button>
+                    <button class="tag-pill" data-insert="Tell me about Ibuprofen">💊 Ibuprofen</button>
+                    <button class="tag-pill" data-insert="Tell me about Cetirizine">💊 Cetirizine</button>
+                    <button class="tag-pill" data-insert="I have seasonal allergy symptoms">🤧 Allergies</button>
+                    <button class="tag-pill" data-insert="What are the warning signs of chest pain?">⚠️ Chest Pain Flags</button>
+                    <button class="tag-pill" data-insert="I have stomach discomfort and acidity">🤢 Stomach Acid</button>
+                </div>
+
+                <!-- Voice Recording Indicator Overlay -->
+                <div class="voice-recording-banner" id="voiceRecordingBanner" style="display: none;">
+                    <div class="voice-wave">
+                        <span class="bar"></span>
+                        <span class="bar"></span>
+                        <span class="bar"></span>
+                        <span class="bar"></span>
+                        <span class="bar"></span>
+                    </div>
+                    <span class="voice-status-text">Listening to your voice... Speak your question</span>
+                    <button class="btn btn-sm btn-danger" id="stopVoiceBtn">Stop Listening</button>
+                </div>
+
+                <!-- Input Field Form -->
+                <div class="input-card">
+                    <textarea 
+                        id="messageInput" 
+                        rows="1" 
+                        placeholder="Describe symptoms, ask about medications, or health queries..."
+                        autocomplete="off"
+                        spellcheck="true"
+                    ></textarea>
+
+                    <div class="input-actions-right">
+                        <!-- Clear text button -->
+                        <button class="icon-btn-subtle" id="clearTextBtn" title="Clear text" style="display: none;">
+                            <i class="fa-solid fa-circle-xmark"></i>
+                        </button>
+
+                        <!-- Speech Recognition / Voice Input -->
+                        <button class="icon-btn-subtle" id="micBtn" title="Speak question (Speech-to-Text)">
+                            <i class="fa-solid fa-microphone"></i>
+                        </button>
+
+                        <!-- Send Button -->
+                        <button class="send-btn" id="sendBtn" title="Send message (Enter)">
+                            <i class="fa-solid fa-paper-plane" id="sendIcon"></i>
+                            <div class="spinner-sm" id="sendSpinner" style="display: none;"></div>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Bottom Reassurance / Disclaimer Footer -->
+                <div class="input-legal-footer">
+                    <span><i class="fa-solid fa-lock"></i> Confidential consultation</span>
+                    <span class="dot-separator">•</span>
+                    <span>For educational use only</span>
+                    <span class="dot-separator">•</span>
+                    <span>In emergencies, call <strong>911</strong> or <strong>112</strong></span>
+                </div>
+            </footer>
 
         </main>
-
-
-        <!-- Input Area -->
-        <footer class="input-area">
-
-            <input
-                type="text"
-                id="messageInput"
-                placeholder="Ask a medical question..."
-                autocomplete="off"
-            >
-
-            <button id="sendButton">
-                Send
-            </button>
-
-        </footer>
 
     </div>
 
 
+    <!-- ============================================== -->
+    <!-- MODALS                                         -->
+    <!-- ============================================== -->
+
+    <!-- 1. Emergency SOS Modal -->
+    <div class="modal-overlay" id="sosModal" role="dialog" aria-modal="true" aria-labelledby="sosModalTitle">
+        <div class="modal-box modal-danger">
+            <div class="modal-header">
+                <div class="modal-title-wrap">
+                    <div class="modal-icon text-danger pulse-glow">
+                        <i class="fa-solid fa-truck-medical"></i>
+                    </div>
+                    <div>
+                        <h3 id="sosModalTitle">Emergency Medical Helplines</h3>
+                        <p>Immediate 24/7 crisis and medical response numbers</p>
+                    </div>
+                </div>
+                <button class="modal-close-btn" data-close="sosModal" aria-label="Close modal">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <div class="emergency-warning-box">
+                    <strong><i class="fa-solid fa-triangle-exclamation"></i> IF YOU EXPERIENCE ANY OF THE FOLLOWING, SEEK EMERGENCY CARE IMMEDIATELY:</strong>
+                    <ul class="danger-bullets">
+                        <li>Crushing chest pain, chest tightness radiating to jaw or left arm</li>
+                        <li>Sudden severe shortness of breath or inability to speak</li>
+                        <li>Sudden weakness, facial drooping, or slurred speech (Signs of Stroke)</li>
+                        <li>Severe allergic reaction with throat swelling or fainting</li>
+                        <li>Uncontrolled bleeding or coughing / vomiting blood</li>
+                        <li>Sudden loss of consciousness or seizures</li>
+                    </ul>
+                </div>
+
+                <h4 class="modal-subtitle">One-Tap Emergency Contacts</h4>
+                <div class="hotlines-grid">
+                    <a href="tel:911" class="hotline-card hotline-primary">
+                        <div class="hotline-country">United States & Canada</div>
+                        <div class="hotline-dial"><i class="fa-solid fa-phone"></i> 911</div>
+                        <span class="hotline-type">Police, Fire & Ambulance</span>
+                    </a>
+
+                    <a href="tel:112" class="hotline-card hotline-primary">
+                        <div class="hotline-country">European Union & India</div>
+                        <div class="hotline-dial"><i class="fa-solid fa-phone"></i> 112</div>
+                        <span class="hotline-type">Unified Emergency Service</span>
+                    </a>
+
+                    <a href="tel:999" class="hotline-card">
+                        <div class="hotline-country">United Kingdom</div>
+                        <div class="hotline-dial"><i class="fa-solid fa-phone"></i> 999</div>
+                        <span class="hotline-type">Emergency Services</span>
+                    </a>
+
+                    <a href="tel:108" class="hotline-card">
+                        <div class="hotline-country">India (Ambulance)</div>
+                        <div class="hotline-dial"><i class="fa-solid fa-phone"></i> 108</div>
+                        <span class="hotline-type">Emergency Medical / Disaster</span>
+                    </a>
+
+                    <a href="tel:18002221222" class="hotline-card">
+                        <div class="hotline-country">Poison Control (US)</div>
+                        <div class="hotline-dial"><i class="fa-solid fa-phone"></i> 1-800-222-1222</div>
+                        <span class="hotline-type">Substance / Toxic Ingestion</span>
+                    </a>
+
+                    <a href="tel:988" class="hotline-card">
+                        <div class="hotline-country">Suicide & Crisis Lifeline</div>
+                        <div class="hotline-dial"><i class="fa-solid fa-phone"></i> 988</div>
+                        <span class="hotline-type">Mental Health Support (US/CA)</span>
+                    </a>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-close="sosModal">Close</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- 2. Medicine Knowledge Base Modal -->
+    <div class="modal-overlay" id="medicineModal" role="dialog" aria-modal="true" aria-labelledby="medicineModalTitle">
+        <div class="modal-box modal-lg">
+            <div class="modal-header">
+                <div class="modal-title-wrap">
+                    <div class="modal-icon text-teal">
+                        <i class="fa-solid fa-book-medical"></i>
+                    </div>
+                    <div>
+                        <h3 id="medicineModalTitle">Medicine Knowledge Base</h3>
+                        <p>Explore verified OTC drugs, common uses, side effects, and precautions</p>
+                    </div>
+                </div>
+                <button class="modal-close-btn" data-close="medicineModal" aria-label="Close modal">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <!-- Search Box -->
+                <div class="med-search-wrap">
+                    <i class="fa-solid fa-magnifying-glass med-search-icon"></i>
+                    <input type="text" id="medSearchInput" placeholder="Search medicines by name, generic name, or symptom...">
+                </div>
+
+                <!-- Medicines Cards Grid -->
+                <div class="medicines-directory-grid" id="medicinesDirectoryGrid">
+                    <!-- Populated dynamically via JS -->
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-close="medicineModal">Close</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- 3. Triage Protocol Guide Modal -->
+    <div class="modal-overlay" id="triageModal" role="dialog" aria-modal="true" aria-labelledby="triageModalTitle">
+        <div class="modal-box modal-md">
+            <div class="modal-header">
+                <div class="modal-title-wrap">
+                    <div class="modal-icon text-primary">
+                        <i class="fa-solid fa-shield-halved"></i>
+                    </div>
+                    <div>
+                        <h3 id="triageModalTitle">MediGuide Triage Architecture</h3>
+                        <p>How our layered safety detection keeps you protected</p>
+                    </div>
+                </div>
+                <button class="modal-close-btn" data-close="triageModal" aria-label="Close modal">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <div class="triage-architecture-flow">
+                    <div class="triage-step-card step-emergency">
+                        <div class="step-badge">Level 1 • Emergency</div>
+                        <h4>Immediate Care Red Flags</h4>
+                        <p>Scans every message for severe respiratory distress, crushing chest pain, stroke symptoms (FAST), uncontrolled bleeding, or toxic ingestion. Immediately stops AI conversation and provides emergency service referral.</p>
+                    </div>
+
+                    <div class="triage-step-card step-urgent">
+                        <div class="step-badge">Level 2 • Urgent</div>
+                        <h4>Prompt Medical Assessment</h4>
+                        <p>Identifies symptoms requiring medical review within hours (e.g. high persistent fever with stiff neck, severe abdominal tenderness, pregnancy complications). Advises timely consultation with a doctor or urgent clinic.</p>
+                    </div>
+
+                    <div class="triage-step-card step-caution">
+                        <div class="step-badge">Level 3 • Caution</div>
+                        <h4>Step-by-Step Symptom Assessment</h4>
+                        <p>When common but concerning symptoms appear (headache, fever, cough), the system initiates an interactive multi-step questionnaire to gauge onset, duration, and severity before generating educational guidance.</p>
+                    </div>
+
+                    <div class="triage-step-card step-routine">
+                        <div class="step-badge">Level 4 • Routine</div>
+                        <h4>General Health & Medicine Information</h4>
+                        <p>Answers medication inquiries, cross-checks active database indications, cautions against drug interactions, and delivers structured wellness knowledge powered by Groq LLaMA.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-primary" data-close="triageModal">Understood</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- 4. Disclaimer & Terms Modal -->
+    <div class="modal-overlay" id="disclaimerModal" role="dialog" aria-modal="true" aria-labelledby="disclaimerModalTitle">
+        <div class="modal-box modal-md">
+            <div class="modal-header">
+                <div class="modal-title-wrap">
+                    <div class="modal-icon text-warning">
+                        <i class="fa-solid fa-scale-balanced"></i>
+                    </div>
+                    <div>
+                        <h3 id="disclaimerModalTitle">Medical Disclaimer & Privacy</h3>
+                        <p>Terms of service and informational scope</p>
+                    </div>
+                </div>
+                <button class="modal-close-btn" data-close="disclaimerModal" aria-label="Close modal">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="modal-body legal-text-content">
+                <h4>1. Educational Purpose Only</h4>
+                <p>
+                    MediGuide AI is an artificial intelligence assistant created to provide general medical, pharmaceutical, and health-related educational information. The content generated is not intended to be a substitute for professional medical advice, diagnosis, or treatment.
+                </p>
+
+                <h4>2. No Doctor-Patient Relationship</h4>
+                <p>
+                    Interacting with MediGuide AI does not establish a doctor-patient, pharmacist-client, or any other healthcare provider relationship. Always seek the advice of your physician or other qualified health provider with any questions you may have regarding a medical condition.
+                </p>
+
+                <h4>3. Emergency Circumstances</h4>
+                <p>
+                    Never disregard professional medical advice or delay seeking it because of something you have read or received from this chatbot. In case of a medical emergency, immediately call 911, 112, or your local emergency response service.
+                </p>
+
+                <h4>4. Data Privacy & Confidentiality</h4>
+                <p>
+                    Consultation sessions are processed securely. We encourage users never to share personal identifiers, Social Security Numbers, or highly sensitive confidential records.
+                </p>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-primary" data-close="disclaimerModal">I Acknowledge & Agree</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- 5. Export Consultation Modal -->
+    <div class="modal-overlay" id="exportModal" role="dialog" aria-modal="true" aria-labelledby="exportModalTitle">
+        <div class="modal-box modal-md">
+            <div class="modal-header">
+                <div class="modal-title-wrap">
+                    <div class="modal-icon text-primary">
+                        <i class="fa-solid fa-file-arrow-down"></i>
+                    </div>
+                    <div>
+                        <h3 id="exportModalTitle">Export Consultation Transcript</h3>
+                        <p>Save or print your consultation notes for your doctor</p>
+                    </div>
+                </div>
+                <button class="modal-close-btn" data-close="exportModal" aria-label="Close modal">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <p class="export-hint">
+                    You can download a clean text copy of this consultation or print it to take with you to your doctor's appointment.
+                </p>
+
+                <div class="export-preview-box">
+                    <pre id="exportPreviewText">Loading transcript preview...</pre>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-close="exportModal">Cancel</button>
+                <button class="btn btn-outline" id="printTranscriptBtn">
+                    <i class="fa-solid fa-print"></i> Print / Save as PDF
+                </button>
+                <button class="btn btn-primary" id="downloadTxtBtn">
+                    <i class="fa-solid fa-download"></i> Download .TXT File
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ============================================== -->
+    <!-- FLOATING TOAST NOTIFICATION                    -->
+    <!-- ============================================== -->
+    <div class="toast-notification" id="toastNotification" role="alert" aria-live="polite">
+        <i class="fa-solid fa-circle-check" id="toastIcon"></i>
+        <span id="toastMessage">Notification message</span>
+    </div>
+
+
+    <!-- Application Script -->
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 
 </body>
-
 </html>

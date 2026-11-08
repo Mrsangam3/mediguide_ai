@@ -2,7 +2,10 @@ import os
 
 from flask import Flask, render_template, jsonify, request, session
 from dotenv import load_dotenv
-from groq import Groq
+try:
+    from groq import Groq
+except ImportError:
+    Groq = None
 import json
 from pathlib import Path
 from database import get_db_connection, search_medicine
@@ -64,16 +67,45 @@ def get_next_assessment_question(assessment):
 # ---------------------------------------------------------
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
+client = Groq(api_key=GROQ_API_KEY) if (Groq and GROQ_API_KEY) else None
 
 
 def ensure_ai_client():
     """Raise a clear error when the AI service is not configured."""
+    if Groq is None:
+        raise RuntimeError(
+            "The 'groq' package is not installed in your Python environment. Run: pip install groq"
+        )
     if client is None:
         raise RuntimeError(
             "GROQ_API_KEY is missing. Add it to your .env file before "
             "using the AI chat features."
         )
+
+
+def create_groq_completion(messages):
+    """
+    Query Groq with fallback model support to ensure high availability.
+    """
+    ensure_ai_client()
+    models_to_try = [
+        "openai/gpt-oss-120b",
+        "llama-3.3-70b-versatile",
+        "llama-3.1-8b-instant",
+        "mixtral-8x7b-32768"
+    ]
+    last_err = None
+    for model_name in models_to_try:
+        try:
+            return client.chat.completions.create(
+                model=model_name,
+                messages=messages
+            )
+        except Exception as e:
+            last_err = e
+            print(f"Model {model_name} notice: {e}. Trying fallback model...")
+            continue
+    raise last_err
 
 
 # ---------------------------------------------------------
@@ -93,7 +125,36 @@ def home():
 def health():
     return jsonify({
         "status": "success",
-        "message": "MediGuide AI backend is working"
+        "message": "MediGuide AI backend is operational",
+        "version": "2.4.0"
+    })
+
+
+# ---------------------------------------------------------
+# Reset Chat Session
+# ---------------------------------------------------------
+
+@app.route("/api/reset", methods=["POST"])
+def reset():
+    session.pop("assessment", None)
+    session.pop("conversation_id", None)
+    session.pop("session_messages", None)
+    return jsonify({
+        "status": "success",
+        "message": "Consultation session reset successfully"
+    })
+
+
+# ---------------------------------------------------------
+# Medicine Knowledge Base Directory
+# ---------------------------------------------------------
+
+@app.route("/api/medicines", methods=["GET"])
+def get_medicines():
+    from database import FALLBACK_MEDICINES
+    return jsonify({
+        "status": "success",
+        "medicines": list(FALLBACK_MEDICINES.values())
     })
 
 
@@ -230,70 +291,57 @@ def chat():
                 )
 
                 # Ask Groq to provide general medical information
-                ensure_ai_client()
-                completion = client.chat.completions.create(
+                completion = create_groq_completion([
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are MediGuide AI, a medical information "
+                            "assistant. Provide general educational health "
+                            "information only. Do not diagnose diseases. "
+                            "Do not prescribe medicines or dosages. "
+                            "Explain possible general causes, self-care "
+                            "considerations, warning signs, and when the "
+                            "user should consult a healthcare professional. "
+                            "Do not present your response as a diagnosis."
+                        )
+                    },
+                    {
+                        "role": "user",
+                        "content": (
+                            f"The user is asking about: "
+                            f"{symptom.replace('_', ' ')}\n\n"
+                            "Here is the information collected during "
+                            "the initial assessment:\n"
+                            f"{assessment_summary}\n\n"
+                            "Based on this information, provide a helpful "
+                            "general medical-information response. "
+                            "Clearly mention any warning signs that would "
+                            "require urgent medical attention."
+                        )
+                    }
+                ])
 
-                    model="openai/gpt-oss-120b",
+                # Get AI response
+                reply = completion.choices[0].message.content
 
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": (
-                                "You are MediGuide AI, a medical information "
-                                "assistant. Provide general educational health "
-                                "information only. Do not diagnose diseases. "
-                                "Do not prescribe medicines or dosages. "
-                                "Explain possible general causes, self-care "
-                                "considerations, warning signs, and when the "
-                                "user should consult a healthcare professional. "
-                                "Do not present your response as a diagnosis."
-                            )
-                        },
-                        {
-                            "role": "user",
-                            "content": (
-                                f"The user is asking about: "
-                                f"{symptom.replace('_', ' ')}\n\n"
-                                "Here is the information collected during "
-                                "the initial assessment:\n"
-                                f"{assessment_summary}\n\n"
-                                "Based on this information, provide a helpful "
-                                "general medical-information response. "
-                                "Clearly mention any warning signs that would "
-                                "require urgent medical attention."
-                            )
-                        }
-                    ]
-                )
-                                # -------------------------------------------------
-                # Save completed assessment to MySQL
                 # -------------------------------------------------
-
+                # Save completed assessment to MySQL (optional/graceful)
+                # -------------------------------------------------
                 connection = None
                 cursor = None
-
                 try:
-
                     connection = get_db_connection()
                     cursor = connection.cursor(dictionary=True)
-
                     conversation_id = session.get("conversation_id")
 
                     # Create a conversation if one does not exist
                     if not conversation_id:
-
                         cursor.execute(
-                            """
-                            INSERT INTO conversations (title)
-                            VALUES (%s)
-                            """,
+                            "INSERT INTO conversations (title) VALUES (%s)",
                             ("MediGuide AI Chat",)
                         )
-
                         connection.commit()
-
                         conversation_id = cursor.lastrowid
-
                         session["conversation_id"] = conversation_id
 
                     # Save assessment summary
@@ -304,63 +352,31 @@ def chat():
                     )
 
                     cursor.execute(
-                        """
-                        INSERT INTO messages
-                        (conversation_id, role, content)
-                        VALUES (%s, %s, %s)
-                        """,
-                        (
-                            conversation_id,
-                            "system",
-                            assessment_message
-                        )
+                        "INSERT INTO messages (conversation_id, role, content) VALUES (%s, %s, %s)",
+                        (conversation_id, "system", assessment_message)
                     )
-
-                    # Get AI response
-                    reply = completion.choices[0].message.content
 
                     # Save AI response
                     cursor.execute(
-                        """
-                        INSERT INTO messages
-                        (conversation_id, role, content)
-                        VALUES (%s, %s, %s)
-                        """,
-                        (
-                            conversation_id,
-                            "assistant",
-                            reply
-                        )
+                        "INSERT INTO messages (conversation_id, role, content) VALUES (%s, %s, %s)",
+                        (conversation_id, "assistant", reply)
                     )
-
                     connection.commit()
-
-                    return jsonify({
-                        "reply": reply,
-                        "triage_level": "caution",
-                        "safety_alert": False,
-                        "assessment_complete": True,
-                        "answers": answers
-                    })
-
                 except Exception as e:
-
-                    print(
-                        "ASSESSMENT DATABASE ERROR:",
-                        repr(e)
-                    )
-
-                    return jsonify({
-                        "error": str(e)
-                    }), 500
-
+                    print("ASSESSMENT DATABASE NOTICE (non-fatal):", repr(e))
                 finally:
-
                     if cursor:
                         cursor.close()
-
                     if connection:
                         connection.close()
+
+                return jsonify({
+                    "reply": reply,
+                    "triage_level": "caution",
+                    "safety_alert": False,
+                    "assessment_complete": True,
+                    "answers": answers
+                })
 
 
     # -----------------------------------------------------
@@ -407,217 +423,140 @@ def chat():
 
     connection = None
     cursor = None
+    conversation_id = None
+    previous_messages = []
 
+    # ---------------------------------------------------------
+    # Search medical database
+    # ---------------------------------------------------------
+    medicine_info = None
+    common_medicines = [
+        "paracetamol",
+        "acetaminophen",
+        "ibuprofen",
+        "cetirizine",
+        "aspirin",
+        "omeprazole"
+    ]
+
+    for medicine_name in common_medicines:
+        if medicine_name in user_message.lower():
+            medicine_info = search_medicine(medicine_name)
+            break
+
+    # ---------------------------------------------------------
+    # Database or Session persistence
+    # ---------------------------------------------------------
     try:
-
-        # -----------------------------------------------------
-        # Connect to MySQL
-        # -----------------------------------------------------
-
         connection = get_db_connection()
-
         cursor = connection.cursor(dictionary=True)
 
-
-        # -----------------------------------------------------
-        # Get or create conversation
-        # -----------------------------------------------------
-
         conversation_id = session.get("conversation_id")
-
         if not conversation_id:
-
             cursor.execute(
-                """
-                INSERT INTO conversations (title)
-                VALUES (%s)
-                """,
+                "INSERT INTO conversations (title) VALUES (%s)",
                 ("MediGuide AI Chat",)
             )
-
             connection.commit()
-
             conversation_id = cursor.lastrowid
-
             session["conversation_id"] = conversation_id
 
-
-        # -----------------------------------------------------
-        # Search medical database
-        # -----------------------------------------------------
-
-        medicine_info = None
-
-        common_medicines = [
-            "paracetamol",
-            "acetaminophen",
-            "ibuprofen",
-            "cetirizine"
-        ]
-
-        for medicine_name in common_medicines:
-
-            if medicine_name in user_message.lower():
-
-                medicine_info = search_medicine(
-                    medicine_name
-                )
-
-                break
-
-
-        # -----------------------------------------------------
-        # Save user message
-        # -----------------------------------------------------
-
         cursor.execute(
-            """
-            INSERT INTO messages
-            (conversation_id, role, content)
-            VALUES (%s, %s, %s)
-            """,
-            (
-                conversation_id,
-                "user",
-                user_message
-            )
+            "INSERT INTO messages (conversation_id, role, content) VALUES (%s, %s, %s)",
+            (conversation_id, "user", user_message)
         )
-
         connection.commit()
 
-
-        # -----------------------------------------------------
-        # Get previous conversation messages
-        # -----------------------------------------------------
-
         cursor.execute(
-            """
-            SELECT role, content
-            FROM messages
-            WHERE conversation_id = %s
-            ORDER BY id ASC
-            """,
+            "SELECT role, content FROM messages WHERE conversation_id = %s ORDER BY id ASC",
             (conversation_id,)
         )
+        previous_messages = cursor.fetchall() or []
+    except Exception as db_err:
+        print("DATABASE NOTICE (fallback to session):", repr(db_err))
+        if "session_messages" not in session:
+            session["session_messages"] = []
+        session["session_messages"].append({"role": "user", "content": user_message})
+        # Keep recent 8 messages for context
+        previous_messages = session["session_messages"][-8:]
 
-        previous_messages = cursor.fetchall()
-
-
-        # -----------------------------------------------------
-        # Build medical database context
-        # -----------------------------------------------------
-
-        medical_context = ""
-
-        if medicine_info:
-
-            medical_context = f"""
+    # ---------------------------------------------------------
+    # Build medical database context
+    # ---------------------------------------------------------
+    medical_context = ""
+    if medicine_info:
+        medical_context = f"""
 Medical information from MediGuide's database:
 
 Medicine: {medicine_info['name']}
-Generic name: {medicine_info['generic_name']}
-Category: {medicine_info['category']}
-Common uses: {medicine_info['common_uses']}
-Common side effects: {medicine_info['common_side_effects']}
-Precautions: {medicine_info['precautions']}
+Generic name: {medicine_info.get('generic_name', medicine_info['name'])}
+Category: {medicine_info.get('category', 'Medical Product')}
+Common uses: {medicine_info.get('common_uses', 'N/A')}
+Common side effects: {medicine_info.get('common_side_effects', 'N/A')}
+Precautions: {medicine_info.get('precautions', 'N/A')}
 
 Use this database information when answering the user's question.
 Do not invent medical information that contradicts the database.
 """
 
-
-        # -----------------------------------------------------
-        # Send conversation to Groq
-        # -----------------------------------------------------
-
-        ensure_ai_client()
-        completion = client.chat.completions.create(
-
-            model="openai/gpt-oss-120b",
-
-            messages=[
-
+    # ---------------------------------------------------------
+    # Send conversation to Groq
+    # ---------------------------------------------------------
+    try:
+        completion = create_groq_completion(
+            [
                 {
                     "role": "system",
                     "content": (
-                        "You are MediGuide AI, a medical information "
-                        "assistant. Provide general educational health "
-                        "information only. Do not diagnose diseases or "
-                        "prescribe medicines or dosages. Encourage users "
-                        "to consult a qualified doctor or pharmacist when "
-                        "appropriate. If a user describes possible "
-                        "emergency symptoms, advise them to seek urgent "
-                        "medical care."
+                        "You are MediGuide AI, an intelligent, empathetic medical information assistant. "
+                        "Provide clear, educational health information with structured formatting (bullet points, bold highlights). "
+                        "Do not diagnose diseases or prescribe exact medicines or dosages. "
+                        "Encourage users to consult a qualified doctor or pharmacist when appropriate. "
+                        "If a user describes possible emergency symptoms, advise them to seek urgent medical care immediately."
                     )
                 },
-
                 {
                     "role": "system",
                     "content": medical_context
                 }
-
             ] + previous_messages
         )
 
-
-        # -----------------------------------------------------
-        # Get AI response
-        # -----------------------------------------------------
-
         reply = completion.choices[0].message.content
 
+        # Save AI response to DB if available
+        if cursor and connection and conversation_id:
+            try:
+                cursor.execute(
+                    "INSERT INTO messages (conversation_id, role, content) VALUES (%s, %s, %s)",
+                    (conversation_id, "assistant", reply)
+                )
+                connection.commit()
+            except Exception as e:
+                print("Failed to save assistant response to DB:", repr(e))
 
-        # -----------------------------------------------------
-        # Save AI response
-        # -----------------------------------------------------
+        if "session_messages" in session:
+            session["session_messages"].append({"role": "assistant", "content": reply})
 
-        cursor.execute(
-            """
-            INSERT INTO messages
-            (conversation_id, role, content)
-            VALUES (%s, %s, %s)
-            """,
-            (
-                conversation_id,
-                "assistant",
-                reply
-            )
-        )
+        response_data = {
+            "reply": reply,
+            "triage_level": "routine",
+            "safety_alert": False
+        }
+        if medicine_info:
+            response_data["medicine_info"] = medicine_info
 
-        connection.commit()
-
-
-        # -----------------------------------------------------
-        # Return response
-        # -----------------------------------------------------
-
-        return jsonify({
-            "reply": reply
-        })
-
-
-    # ---------------------------------------------------------
-    # Error handling
-    # ---------------------------------------------------------
+        return jsonify(response_data)
 
     except Exception as e:
-
-        print("ERROR:", repr(e))
-
+        print("AI COMPLETION ERROR:", repr(e))
         return jsonify({
-            "error": str(e)
+            "error": f"AI service error: {str(e)}"
         }), 500
 
-
-    # ---------------------------------------------------------
-    # Close database resources
-    # ---------------------------------------------------------
-
     finally:
-
         if cursor:
             cursor.close()
-
         if connection:
             connection.close()
 
