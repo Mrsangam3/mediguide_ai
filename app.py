@@ -77,21 +77,23 @@ def ensure_ai_client():
         raise RuntimeError(
             "The 'groq' package is not installed in your Python environment. Run: pip install groq"
         )
-    if client is None:
-        api_key = os.getenv("GROQ_API_KEY")
-        if not api_key:
-            env_file = BASE_DIR / ".env"
-            if env_file.exists():
-                load_dotenv(env_file)
-                api_key = os.getenv("GROQ_API_KEY")
-        if api_key:
-            client = Groq(api_key=api_key)
 
-    if client is None:
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        env_file = BASE_DIR / ".env"
+        if env_file.exists():
+            load_dotenv(env_file)
+            api_key = os.getenv("GROQ_API_KEY")
+
+    if not api_key:
         raise RuntimeError(
-            "GROQ_API_KEY is missing. If you are on Vercel, go to your Vercel Dashboard -> Project Settings -> "
-            "Environment Variables, add 'GROQ_API_KEY', and redeploy."
+            "GROQ_API_KEY is missing. In Vercel, ensure GROQ_API_KEY is added under "
+            "Project Settings -> Environment Variables with 'Production' checked, then redeploy."
         )
+
+    if client is None or getattr(client, "api_key", None) != api_key:
+        client = Groq(api_key=api_key)
+
     return client
 
 
