@@ -71,23 +71,35 @@ client = Groq(api_key=GROQ_API_KEY) if (Groq and GROQ_API_KEY) else None
 
 
 def ensure_ai_client():
-    """Raise a clear error when the AI service is not configured."""
+    """Ensure the AI client is configured and dynamically reload env vars if needed."""
+    global client
     if Groq is None:
         raise RuntimeError(
             "The 'groq' package is not installed in your Python environment. Run: pip install groq"
         )
     if client is None:
+        api_key = os.getenv("GROQ_API_KEY")
+        if not api_key:
+            env_file = BASE_DIR / ".env"
+            if env_file.exists():
+                load_dotenv(env_file)
+                api_key = os.getenv("GROQ_API_KEY")
+        if api_key:
+            client = Groq(api_key=api_key)
+
+    if client is None:
         raise RuntimeError(
-            "GROQ_API_KEY is missing. Add it to your .env file before "
-            "using the AI chat features."
+            "GROQ_API_KEY is missing. If you are on Vercel, go to your Vercel Dashboard -> Project Settings -> "
+            "Environment Variables, add 'GROQ_API_KEY', and redeploy."
         )
+    return client
 
 
 def create_groq_completion(messages):
     """
     Query Groq with fallback model support to ensure high availability.
     """
-    ensure_ai_client()
+    ai_client = ensure_ai_client()
     models_to_try = [
         "openai/gpt-oss-120b",
         "llama-3.3-70b-versatile",
@@ -97,7 +109,7 @@ def create_groq_completion(messages):
     last_err = None
     for model_name in models_to_try:
         try:
-            return client.chat.completions.create(
+            return ai_client.chat.completions.create(
                 model=model_name,
                 messages=messages
             )
